@@ -1,11 +1,14 @@
-﻿using backend_api.Data;
+using backend_api.Data;
 using backend_api.DTOs.Common;
 using backend_api.DTOs.Document;
+using backend_api.DTOs.Requests;
 using backend_api.DTOs.Version;
+using backend_api.Helpers;
 using backend_api.Inerfaces.Services;
 using backend_api.Interfaces.Repositories;
 using backend_api.Interfaces.Services;
 using backend_api.Models;
+using FluentValidation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
@@ -33,14 +36,31 @@ namespace backend_api.Controllers
         private readonly IDocumentService _documentService;
         private readonly IOnlyOfficeService _onlyOfficeService;
         private readonly IDocumentDiffService _diffService;
+
+        // FluentValidation validators
+        private readonly IValidator<UploadDocumentRequest> _uploadValidator;
+        private readonly IValidator<DocumentIdRequest> _documentIdValidator;
+        private readonly IValidator<DocumentConfigRequest> _documentConfigValidator;
+        private readonly IValidator<CallbackRequest> _callbackValidator;
+        private readonly IValidator<DiffConfigRequest> _diffConfigValidator;
+        private readonly IValidator<DeleteVersionRequest> _deleteVersionValidator;
+        private readonly IValidator<CompareVersionsRequest> _compareValidator;
+
         public DocumentController(
      
-     TokenService tokenService,
-     FileStorageService fileStorage,
-   IDocumentService documentService,
-     IOnlyOfficeService onlyOfficeService,
-      IDocumentDiffService diffService
-     )
+         TokenService tokenService,
+         FileStorageService fileStorage,
+         IDocumentService documentService,
+         IOnlyOfficeService onlyOfficeService,
+         IDocumentDiffService diffService,
+         IValidator<UploadDocumentRequest> uploadValidator,
+         IValidator<DocumentIdRequest> documentIdValidator,
+         IValidator<DocumentConfigRequest> documentConfigValidator,
+         IValidator<CallbackRequest> callbackValidator,
+         IValidator<DiffConfigRequest> diffConfigValidator,
+         IValidator<DeleteVersionRequest> deleteVersionValidator,
+         IValidator<CompareVersionsRequest> compareValidator
+         )
         {
             
             _tokenService = tokenService;
@@ -48,6 +68,15 @@ namespace backend_api.Controllers
             _documentService = documentService;
             _onlyOfficeService = onlyOfficeService;
             _diffService = diffService;
+
+            _uploadValidator = uploadValidator;
+            _documentIdValidator = documentIdValidator;
+            _documentConfigValidator = documentConfigValidator;
+            _callbackValidator = callbackValidator;
+            _diffConfigValidator = diffConfigValidator;
+            _deleteVersionValidator = deleteVersionValidator;
+            _compareValidator = compareValidator;
+
             _storagePath = Path.Combine(Directory.GetCurrentDirectory(), "document-storage");
             if (!Directory.Exists(_storagePath))
             {
@@ -63,6 +92,12 @@ namespace backend_api.Controllers
         
         public async Task<IActionResult> Upload(IFormFile file)
         {
+            // Validation
+            var request = new UploadDocumentRequest { File = file };
+            var validation = await _uploadValidator.ValidateAsync(request);
+            var errorResponse = ValidationHelper.ToErrorResponse(validation);
+            if (errorResponse != null) return errorResponse;
+
             try
             {
                 var (name, _, _) = _tokenService.GetUser(HttpContext);
@@ -80,8 +115,14 @@ namespace backend_api.Controllers
         }
 
         [HttpGet("{id}/config")]
-        public IActionResult GetDocumentConfig(int id, [FromQuery] int? versionId)
+        public async Task<IActionResult> GetDocumentConfig(int id, [FromQuery] int? versionId)
         {
+            // Validation
+            var request = new DocumentConfigRequest { Id = id, VersionId = versionId };
+            var validation = await _documentConfigValidator.ValidateAsync(request);
+            var errorResponse = ValidationHelper.ToErrorResponse(validation);
+            if (errorResponse != null) return errorResponse;
+
             try
             {
                 var (name, email, oid) = _tokenService.GetUser(HttpContext);
@@ -104,6 +145,19 @@ namespace backend_api.Controllers
                 var userName = HttpContext.Request.Query["user"].FirstOrDefault() ?? "Unknown User";
                 var versionIdStr = HttpContext.Request.Query["versionId"].FirstOrDefault();
                 int? versionId = string.IsNullOrEmpty(versionIdStr) ? null : int.Parse(versionIdStr);
+
+                // Validation
+                var request = new CallbackRequest
+                {
+                    DocumentId = id,
+                    Data = data,
+                    UserName = userName,
+                    VersionId = versionId
+                };
+                var validation = await _callbackValidator.ValidateAsync(request);
+                var errorResponse = ValidationHelper.ToErrorResponse(validation);
+                if (errorResponse != null) return errorResponse;
+
                 var result = await _onlyOfficeService.HandleCallback(id, data, userName, versionId);
 
                 return new JsonResult(result);
@@ -116,8 +170,14 @@ namespace backend_api.Controllers
         }
 
         [HttpGet("files/{filename}")]
-        public IActionResult Download(string filename)
+        public async Task<IActionResult> Download(string filename)
         {
+            // Validation - reuse DiffConfigValidator for filename safety checks
+            var request = new DiffConfigRequest { FileName = filename };
+            var validation = await _diffConfigValidator.ValidateAsync(request);
+            var errorResponse = ValidationHelper.ToErrorResponse(validation);
+            if (errorResponse != null) return errorResponse;
+
             Console.WriteLine("DOWNLOAD API HIT  " + filename);
             var bytes = _fileStorage.GetFile(filename);
 
@@ -141,6 +201,12 @@ namespace backend_api.Controllers
         [HttpGet("{id}/versions")]
         public async Task<IActionResult> GetVersions(int id)
         {
+            // Validation
+            var request = new DocumentIdRequest { Id = id };
+            var validation = await _documentIdValidator.ValidateAsync(request);
+            var errorResponse = ValidationHelper.ToErrorResponse(validation);
+            if (errorResponse != null) return errorResponse;
+
             var result = await _documentService.GetVersionsAsync(id);
             return Ok(ApiResponse<List<VersionDto>>.SuccessResponse(
       result,
@@ -165,6 +231,12 @@ namespace backend_api.Controllers
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteDocument(int id)
         {
+            // Validation
+            var request = new DocumentIdRequest { Id = id };
+            var validation = await _documentIdValidator.ValidateAsync(request);
+            var errorResponse = ValidationHelper.ToErrorResponse(validation);
+            if (errorResponse != null) return errorResponse;
+
             try
             {
                 await _documentService.DeleteDocumentAsync(id);
@@ -181,6 +253,12 @@ namespace backend_api.Controllers
         [HttpDelete("{documentId}/versions/{versionId}")]
         public async Task<IActionResult> DeleteVersion(int documentId, int versionId)
         {
+            // Validation
+            var request = new DeleteVersionRequest { DocumentId = documentId, VersionId = versionId };
+            var validation = await _deleteVersionValidator.ValidateAsync(request);
+            var errorResponse = ValidationHelper.ToErrorResponse(validation);
+            if (errorResponse != null) return errorResponse;
+
             try
             {
                 await _documentService.DeleteVersionAsync(documentId, versionId);
@@ -197,6 +275,12 @@ namespace backend_api.Controllers
         [HttpGet("{id}")]
         public async Task<IActionResult> GetById(int id)
         {
+            // Validation
+            var request = new DocumentIdRequest { Id = id };
+            var validation = await _documentIdValidator.ValidateAsync(request);
+            var errorResponse = ValidationHelper.ToErrorResponse(validation);
+            if (errorResponse != null) return errorResponse;
+
             var result = await _documentService.GetDocumentByIdAsync(id);
             return Ok(ApiResponse<DocumentDetailDto>.SuccessResponse(
     result,
@@ -207,6 +291,12 @@ namespace backend_api.Controllers
         [HttpGet("{documentId}/compare")]
         public async Task<IActionResult> Compare(int documentId, int v1, int v2)
         {
+            // Validation
+            var request = new CompareVersionsRequest { DocumentId = documentId, V1 = v1, V2 = v2 };
+            var validation = await _compareValidator.ValidateAsync(request);
+            var errorResponse = ValidationHelper.ToErrorResponse(validation);
+            if (errorResponse != null) return errorResponse;
+
             try
             {
                 var fileName = await _diffService.GenerateDiffAsync(documentId, v1, v2);
@@ -223,8 +313,14 @@ namespace backend_api.Controllers
         }
 
         [HttpGet("diff-config")]
-        public IActionResult GetDiffConfig(string fileName)
+        public async Task<IActionResult> GetDiffConfig(string fileName)
         {
+            // Validation
+            var request = new DiffConfigRequest { FileName = fileName };
+            var validation = await _diffConfigValidator.ValidateAsync(request);
+            var errorResponse = ValidationHelper.ToErrorResponse(validation);
+            if (errorResponse != null) return errorResponse;
+
             var fileUrl = $"http://host.docker.internal:5000/api/document/files/{fileName}";
 
 
@@ -246,9 +342,6 @@ namespace backend_api.Controllers
 
             return Ok(config);
         }
-
-
-
 
 
 

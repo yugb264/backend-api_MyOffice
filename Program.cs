@@ -1,12 +1,16 @@
 using backend_api.Data;
 using backend_api.Inerfaces.Services;
 using backend_api.Interfaces.Services;
+using FluentValidation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using backend_api.Interfaces.Repositories;
 var builder = WebApplication.CreateBuilder(args);
+
+// Register FluentValidation validators from this assembly
+builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<FileStorageService>();
 builder.Services.AddScoped<IDocumentRepository, DocumentRepository>();
