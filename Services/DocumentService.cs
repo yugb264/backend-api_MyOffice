@@ -42,6 +42,7 @@ public class DocumentService : IDocumentService
         {
             return new UploadResponseDto
             {
+                IsDuplicate = true,
                 DocumentId = existingDoc.Id,
                 FileName = existingDoc.FileName,
                 Message = "File already exists"
@@ -83,7 +84,9 @@ public class DocumentService : IDocumentService
         await _versionRepo.SaveAsync();
 
         return new UploadResponseDto
+
         {
+            IsDuplicate = false,
             DocumentId = doc.Id,
             FileName = doc.FileName,
             Message = "Uploaded successfully"

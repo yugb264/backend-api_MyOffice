@@ -103,6 +103,18 @@ namespace backend_api.Controllers
                 var (name, _, _) = _tokenService.GetUser(HttpContext);
 
                 var result = await _documentService.UploadAsync(file, name);
+                if (result.IsDuplicate)
+                {
+                    return BadRequest(new ApiResponse<object>
+                    {
+                        Success = false,
+                        Message = result.Message,
+                        Data = new
+                        {
+                            fileName = result.FileName
+                        }
+                    });
+                }
                 return Ok(ApiResponse<UploadResponseDto>.SuccessResponse(
     result,
     result.Message
