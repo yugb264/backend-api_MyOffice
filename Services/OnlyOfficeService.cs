@@ -1,4 +1,4 @@
-﻿using backend_api.Models;
+using backend_api.Models;
 using Newtonsoft.Json.Linq;
 using System.Net.Http;
 using System.Text;
@@ -128,7 +128,6 @@ public class OnlyOfficeService : IOnlyOfficeService
 
             var bytes = await response.Content.ReadAsByteArrayAsync();
 
-            // ❗ Validate DOCX
             var textPreview = Encoding.UTF8.GetString(bytes.Take(200).ToArray());
 
             if (textPreview.Contains("<html") || textPreview.Contains("<!DOCTYPE"))
@@ -136,7 +135,10 @@ public class OnlyOfficeService : IOnlyOfficeService
                 return new { error = 1 };
             }
 
-            if (!bytes.Take(2).SequenceEqual(new byte[] { 0x50, 0x4B }))
+            var isZip = bytes.Take(2).SequenceEqual(new byte[] { 0x50, 0x4B });
+            var isPdf = bytes.Take(5).SequenceEqual(new byte[] { 0x25, 0x50, 0x44, 0x46, 0x2D });
+
+            if (!isZip && !isPdf)
             {
                 return new { error = 1 };
             }
@@ -145,6 +147,14 @@ public class OnlyOfficeService : IOnlyOfficeService
             {
                 return new { error = 1 };
             }
+
+            var doc = _docRepo.GetById(documentId);
+            if (doc == null)
+            {
+                return new { error = 1 };
+            }
+
+            var fileExt = Path.GetExtension(doc.FileName);
 
             var hash = FileHelper.GenerateHash(bytes);
 
@@ -167,7 +177,7 @@ public class OnlyOfficeService : IOnlyOfficeService
                 return new { error = 0 };
             }
 
-            var versionFileName = $"version_{DateTime.Now.Ticks}.docx";
+            var versionFileName = $"version_{DateTime.Now.Ticks}{fileExt}";
 
             await _fileStorage.SaveFileAsync(bytes, versionFileName);
           
@@ -193,12 +203,6 @@ public class OnlyOfficeService : IOnlyOfficeService
          documentId = documentId,
          versionNumber = version.VersionNumber
      });
-
-            var doc = _docRepo.GetById(documentId);
-            if (doc == null)
-            {
-                return new { error = 1 };
-            }
 
             // Update original file AFTER versioning
             await _fileStorage.SaveFileAsync(bytes, doc.FileName);

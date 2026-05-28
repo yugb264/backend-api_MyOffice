@@ -16,10 +16,6 @@ namespace backend_api.Validators
                 .WithMessage("File name contains invalid characters.")
                 .When(x => !string.IsNullOrEmpty(x.FileName));
 
-            RuleFor(x => x.FileName)
-                .Must(fileName => fileName.EndsWith(".docx", StringComparison.OrdinalIgnoreCase))
-                .WithMessage("Only .docx files are supported.")
-                .When(x => !string.IsNullOrEmpty(x.FileName));
         }
     }
 }

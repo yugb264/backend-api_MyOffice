@@ -23,10 +23,6 @@ namespace backend_api.Validators
                 .WithMessage("File size must not exceed 25 MB.")
                 .When(x => x.File != null);
 
-            RuleFor(x => x.File.FileName)
-                .Must(fileName => Path.GetExtension(fileName).Equals(".docx", StringComparison.OrdinalIgnoreCase))
-                .WithMessage("Only .docx files are supported.")
-                .When(x => x.File != null);
         }
     }
 }

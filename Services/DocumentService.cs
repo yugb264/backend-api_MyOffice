@@ -1,4 +1,4 @@
-﻿using backend_api.DTOs.Document;
+using backend_api.DTOs.Document;
 using backend_api.DTOs.Version;
 using backend_api.Inerfaces.Services;
 using backend_api.Interfaces.Repositories;
@@ -26,9 +26,7 @@ public class DocumentService : IDocumentService
         if (file == null || file.Length == 0)
             throw new Exception("No file uploaded");
 
-        var extension = Path.GetExtension(file.FileName).ToLower();
-        if (extension != ".docx")
-            throw new Exception("Only .docx files are supported");
+
 
         using var memoryStream = new MemoryStream();
         await file.CopyToAsync(memoryStream);
