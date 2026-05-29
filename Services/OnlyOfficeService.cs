@@ -53,7 +53,7 @@ public class OnlyOfficeService : IOnlyOfficeService
             {
                 fileType = Path.GetExtension(doc.FileName).Replace(".", ""),
                 key = versionId.HasValue
-    ? $"doc-{doc.Id}-v{versionId}"
+    ? $"doc-{doc.Id}-edit-{Guid.NewGuid()}"
     : $"doc-{doc.Id}-latest",
                 title = doc.FileName,
                 url = fileUrl
